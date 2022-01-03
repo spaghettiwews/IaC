@@ -16,13 +16,19 @@ resource "aws_instance" "app_server" {
   ami           = "ami-04505e74c0741db8d"
   instance_type = "t2.micro"
 
+  root_block_device {
+    volume_size = 30
+  }
+
   key_name = aws_key_pair.app_server_key.key_name
 
   tags = {
     Name = "AppServer"
   }
 
-  security_groups = [aws_security_group.allow_ssh.name, "default"]
+  security_groups = [aws_security_group.allow_ssh.name, aws_security_group.allow_http.name, "default"]
+
+  user_data_base64 = base64encode(file("cloud-init.yaml"))
 }
 
 resource "aws_key_pair" "app_server_key" {
@@ -39,9 +45,30 @@ resource "aws_security_group" "allow_ssh" {
   description = "Allow SSH inboud traffic from custom IP"
 
   ingress {
-    from_port = 22
-    to_port   = 22
-    protocol  = "tcp"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
     cidr_blocks = ["41.79.132.234/32"]
+  }
+}
+
+resource "aws_security_group" "allow_http" {
+  name        = "AllowHTTP"
+  description = "Allow HTTP inboud traffic from anywhere"
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_eip" "elastic_ip" {
+  instance = aws_instance.app_server.id
+  vpc      = true
+
+  tags = {
+    "Name" = "AppServerElasticIP"
   }
 }
